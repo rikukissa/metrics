@@ -1,0 +1,2 @@
+commands:
+  loc: "( find ./ -name '*.ts' -print0 | xargs -0 cat ) | wc -l"

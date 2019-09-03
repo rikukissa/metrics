@@ -85,8 +85,8 @@ function table(data: ITableItem[]) {
   }
 
   const columns: Array<keyof ITableItem> = [
-    "command",
     "status",
+    "command",
     "current",
     "delta"
   ];

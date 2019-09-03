@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "node index.js",
     "test": "jest"
   },
   "bin": {
-    "metrics": "ts-node src/index.ts"
+    "metrics": "./index.js"
   },
   "author": "",
   "license": "ISC",

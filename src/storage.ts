@@ -14,7 +14,7 @@ export interface IResult {
   current: number;
 }
 
-export async function getPreviousResults() {
+export async function getPreviousResults(): Promise<IResult[]> {
   const response = await fetch(
     `https://api.airtable.com/v0/${AIRTABLE_SPACE}/Table%201?sort[0][field]=timestamp&sort[0][direction]=desc`,
     {
@@ -26,8 +26,6 @@ export async function getPreviousResults() {
   const results = await response.json();
 
   if (results.error) {
-    console.error(results);
-
     throw new Error(results.error.type + " " + results.error.message);
   }
 

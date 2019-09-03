@@ -1,34 +1,32 @@
 import cp from "child_process";
-import YAML from "yaml";
+
 import { promisify } from "util";
+
 import {
   findConfiguration,
   storeResults,
   IResult,
-  getPreviousResults
+  getPreviousResults,
+  IConfigurationFile
 } from "./storage";
+import { createComment } from "./github";
 
 const exec = promisify(cp.exec);
-
-type Command = string;
 
 interface IEnvironment {
   TRAVIS_PULL_REQUEST: string;
   TRAVIS_PULL_REQUEST_BRANCH: string;
   TRAVIS_BRANCH: string;
+  TRAVIS_PULL_REQUEST_SLUG: string;
 }
 
-export async function getResults(configurationFile: string) {
-  const configuration: { commands: { [name: string]: Command } } = YAML.parse(
-    configurationFile
-  );
-
+export async function getResults(configurationFile: IConfigurationFile) {
   const results: IResult[] = [];
-  for (const [name, command] of Object.entries(configuration.commands)) {
+  for (const { name, command } of configurationFile.commands) {
     const result = await exec(command);
     results.push({
       command: name,
-      result: parseFloat(result.stdout.trim()),
+      current: parseFloat(result.stdout.trim()),
       timestamp: new Date().toISOString()
     });
   }
@@ -38,41 +36,114 @@ export async function getResults(configurationFile: string) {
 export function getChangeInfo(environment: IEnvironment) {
   if (environment.TRAVIS_PULL_REQUEST) {
     return {
+      pr: {
+        id: environment.TRAVIS_PULL_REQUEST,
+        repo: environment.TRAVIS_PULL_REQUEST_SLUG
+      },
       branch: environment.TRAVIS_PULL_REQUEST_BRANCH
     };
   }
   return {
+    pr: null,
     branch: environment.TRAVIS_BRANCH
   };
 }
 
 function getLatestResultForCommand(commandName: string, results: IResult[]) {
-  return results.find(({ command }) => command === commandName)!.result;
+  const result = results.find(({ command }) => command === commandName);
+
+  if (!result) {
+    return null;
+  }
+
+  return result.current;
 }
 
-async function run() {
+function columnNameToHeader(key: string) {
+  if (key === "command" || key === "status") {
+    return "";
+  }
+  if (key === "delta") {
+    return "Δ";
+  }
+  if (key === "current") {
+    return "Current";
+  }
+  return key;
+}
+
+interface ITableItem {
+  delta: string;
+  status: string;
+  command: string;
+  current: number;
+}
+
+function table(data: ITableItem[]) {
+  if (data.length === 0) {
+    return "";
+  }
+
+  const columns: Array<keyof ITableItem> = [
+    "status",
+    "command",
+    "current",
+    "delta"
+  ];
+
+  const firstRow = `| ${columns.map(columnNameToHeader).join(" | ")} |`;
+  const secondRow = `| ${columns.map(() => "---").join("|")} |`;
+  const content = data
+    .map(row => `| ${columns.map(column => row[column]).join(" | ")} |`)
+    .join("\n");
+
+  return `${firstRow}\n${secondRow}\n${content}`;
+}
+
+function getDeltaString(value: number) {
+  if (value > 0) {
+    return `+${value}`;
+  }
+  return value.toString();
+}
+
+export async function run() {
   const config = await findConfiguration();
   const results = await getResults(config);
   const previousResults = await getPreviousResults();
 
-  console.table(
-    results.map(result => {
-      const delta =
-        result.result -
-        getLatestResultForCommand(result.command, previousResults);
-      return {
-        ...result,
-        delta,
-        direction: delta > 0 ? "⬆️" : delta !== 0 ? "⬇️" : "-"
-      };
-    })
-  );
+  const tableRows: ITableItem[] = results.map(result => {
+    const latest = getLatestResultForCommand(result.command, previousResults);
+    const delta = latest !== null ? result.current - latest : 0;
 
+    return {
+      delta: getDeltaString(delta),
+      command: result.command,
+      current: result.current,
+      status: delta > 0 ? "⬆️" : delta !== 0 ? "⬇️" : "✅"
+    };
+  });
+  console.table(tableRows);
+  if (!process.env.GITHUB_TOKEN) {
+    console.info("No Github token set");
+    return;
+  }
   if (!process.env.TRAVIS) {
     return;
   }
 
-  await storeResults(results);
+  const info = getChangeInfo(process.env as any);
+
+  if (info.branch === "master") {
+    await storeResults(results);
+    return;
+  }
+
+  if (!info.pr) {
+    return;
+  }
+
+  await createComment(table(tableRows), info.pr, process.env.GITHUB_TOKEN!);
 }
 
 if (require.main === module) {

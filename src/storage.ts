@@ -2,7 +2,7 @@ import { promisify } from "util";
 import fs from "fs";
 import { join } from "path";
 import fetch from "node-fetch";
-
+import YAML from "yaml";
 const readFile = promisify(fs.readFile);
 
 const AIRTABLE_SPACE = process.env.AIRTABLE_SPACE;
@@ -11,10 +11,10 @@ const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 export interface IResult {
   timestamp: string;
   command: string;
-  result: number;
+  current: number;
 }
 
-export async function getPreviousResults() {
+export async function getPreviousResults(): Promise<IResult[]> {
   const response = await fetch(
     `https://api.airtable.com/v0/${AIRTABLE_SPACE}/Table%201?sort[0][field]=timestamp&sort[0][direction]=desc`,
     {
@@ -51,8 +51,12 @@ export async function storeResults(results: IResult[]) {
   }
 }
 
-export async function findConfiguration() {
+export interface IConfigurationFile {
+  commands: Array<{ name: string; command: string }>;
+}
+
+export async function findConfiguration(): Promise<IConfigurationFile> {
   const cwd = process.cwd();
   const file = await readFile(join(cwd, "./metrics.yml"));
-  return file.toString();
+  return YAML.parse(file.toString());
 }

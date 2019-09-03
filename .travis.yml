@@ -1,2 +1,4 @@
 language: node_js
 script: npm start
+node_js:
+  - 11.6

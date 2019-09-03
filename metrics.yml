@@ -1,2 +1,5 @@
 commands:
-  loc: "( find ./ -name '*.ts' -print0 | xargs -0 cat ) | wc -l"
+  - name: Lines of code
+    command: "( find ./ -name '*.ts' -print0 | xargs -0 cat ) | wc -l"
+  - name: TSLint errors
+    command: "./node_modules/.bin/tslint --project tsconfig.json | sed '/^$/d' | wc -l"

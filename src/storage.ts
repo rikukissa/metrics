@@ -14,6 +14,8 @@ export interface IResult {
   current: number;
 }
 
+export const enabled = () => AIRTABLE_SPACE && AIRTABLE_TOKEN;
+
 export async function getPreviousResults(): Promise<IResult[]> {
   const response = await fetch(
     `https://api.airtable.com/v0/${AIRTABLE_SPACE}/Table%201?sort[0][field]=timestamp&sort[0][direction]=desc`,

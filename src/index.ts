@@ -7,7 +7,8 @@ import {
   storeResults,
   IResult,
   getPreviousResults,
-  IConfigurationFile
+  IConfigurationFile,
+  enabled
 } from "./storage";
 import { createComment } from "./github";
 
@@ -110,19 +111,33 @@ function getDeltaString(value: number) {
 export async function run() {
   const config = await findConfiguration();
   const results = await getResults(config);
+
+  const tableRowsWithoutStatus = results.map(result => {
+    return {
+      delta: getDeltaString(0),
+      command: result.command,
+      current: result.current
+    };
+  });
+
+  if (!enabled()) {
+    console.table(tableRowsWithoutStatus);
+    return;
+  }
+
   const previousResults = await getPreviousResults();
 
-  const tableRows: ITableItem[] = results.map(result => {
+  const tableRows: ITableItem[] = tableRowsWithoutStatus.map(result => {
     const latest = getLatestResultForCommand(result.command, previousResults);
     const delta = latest !== null ? result.current - latest : 0;
 
     return {
+      ...result,
       delta: getDeltaString(delta),
-      command: result.command,
-      current: result.current,
       status: delta > 0 ? "⬆️" : delta !== 0 ? "⬇️" : "✅"
     };
   });
+
   console.table(tableRows);
   if (!process.env.GITHUB_TOKEN) {
     console.info("No Github token set");

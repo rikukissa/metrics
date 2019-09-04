@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+const { join } = require("path");
 
 require("ts-node").register({
-  compilerOptions: require("./tsconfig.json").compilerOptions,
-  transpileOnly: true
+  project: join(__dirname, "./tsconfig.json"),
+  transpileOnly: true,
+  ignore: [/node_modules\/(?!metrics)/]
 });
 require("./src/index.ts").run();

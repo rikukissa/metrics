@@ -5,51 +5,32 @@ import fetch from "node-fetch";
 import YAML from "yaml";
 const readFile = promisify(fs.readFile);
 
-const AIRTABLE_SPACE = process.env.AIRTABLE_SPACE;
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-
 export interface IResult {
   timestamp: string;
   command: string;
   current: number;
 }
 
-export const enabled = () => AIRTABLE_SPACE && AIRTABLE_TOKEN;
-
-export async function getPreviousResults(): Promise<IResult[]> {
+export async function getPreviousResults(repo: string): Promise<IResult[]> {
   const response = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_SPACE}/Table%201?sort[0][field]=timestamp&sort[0][direction]=desc`,
-    {
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`
-      }
-    }
+    `https://metrics-backend.herokuapp.com/metrics/${repo}`
   );
-  const results = await response.json();
+  const results: IResult[] = await response.json();
 
-  if (results.error) {
-    throw new Error(results.error.type + " " + results.error.message);
-  }
-
-  return results.records.map(({ fields }: { fields: IResult }) => fields);
+  return results.sort(
+    (a, b) => new Date(b.timestamp).valueOf() - new Date(a.timestamp).valueOf()
+  );
 }
-export async function storeResults(results: IResult[]) {
+export async function storeResults(results: IResult[], repo: string) {
   for (const result of results) {
     const response = await fetch(
-      `https://api.airtable.com/v0/${AIRTABLE_SPACE}/Table%201`,
+      `https://metrics-backend.herokuapp.com/metrics/${repo}`,
       {
         method: "POST",
-        body: JSON.stringify({ fields: result }),
-        headers: {
-          Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-          "Content-Type": "application/json"
-        }
+        body: JSON.stringify(result)
       }
     );
-    const res = await response.json();
-    if (res.error) {
-      throw new Error(res.error.type + " " + res.error.message);
-    }
+    await response.json();
   }
 }
 

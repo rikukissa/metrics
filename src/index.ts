@@ -7,8 +7,7 @@ import {
   storeResults,
   IResult,
   getPreviousResults,
-  IConfigurationFile,
-  enabled
+  IConfigurationFile
 } from "./storage";
 import { createComment } from "./github";
 
@@ -68,7 +67,7 @@ function columnNameToHeader(key: string) {
     return "Δ";
   }
   if (key === "current") {
-    return "Current";
+    return "This branch";
   }
   return key;
 }
@@ -78,6 +77,7 @@ interface ITableItem {
   status: string;
   command: string;
   current: number;
+  master: string;
 }
 
 function table(data: ITableItem[]) {
@@ -89,6 +89,7 @@ function table(data: ITableItem[]) {
     "status",
     "command",
     "current",
+    "master",
     "delta"
   ];
 
@@ -120,12 +121,13 @@ export async function run() {
     };
   });
 
-  if (!enabled()) {
+  const info = getChangeInfo(process.env as any);
+
+  if (!info.pr) {
     console.table(tableRowsWithoutStatus);
     return;
   }
-
-  const previousResults = await getPreviousResults();
+  const previousResults = await getPreviousResults(info.pr.repo);
 
   const tableRows: ITableItem[] = tableRowsWithoutStatus.map(result => {
     const latest = getLatestResultForCommand(result.command, previousResults);
@@ -134,6 +136,7 @@ export async function run() {
     return {
       ...result,
       delta: getDeltaString(delta),
+      master: latest === null ? "-" : latest.toString(),
       status: delta > 0 ? "⬆️" : delta !== 0 ? "⬇️" : "✅"
     };
   });
@@ -147,10 +150,8 @@ export async function run() {
     return;
   }
 
-  const info = getChangeInfo(process.env as any);
-
   if (info.branch === "master") {
-    await storeResults(results);
+    await storeResults(results, info.pr.repo);
     return;
   }
 

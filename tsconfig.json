@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es5",
     "module": "commonjs",
+    "outDir": "dist",
     "lib": ["dom", "esnext"],
     "strict": true,
     "types": ["jest", "node"],

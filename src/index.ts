@@ -1,5 +1,5 @@
 import cp from "child_process";
-
+import Table from "cli-table";
 import { promisify } from "util";
 
 import {
@@ -60,43 +60,59 @@ function getLatestResultForCommand(commandName: string, results: IResult[]) {
 }
 
 function columnNameToHeader(key: string) {
-  if (key === "command" || key === "status") {
+  if (key === "command") {
     return "";
   }
-  if (key === "delta") {
+  if (key === "status") {
     return "Δ";
   }
   if (key === "current") {
     return "This branch";
   }
+  if (key === "master") {
+    return "Upstream";
+  }
   return key;
 }
 
 interface ITableItem {
-  delta: string;
   status: string;
   command: string;
   current: number;
   master: string;
 }
 
-function table(data: ITableItem[]) {
+const COLUMN_ORDER: Array<keyof ITableItem> = [
+  "status",
+  "command",
+  "current",
+  "master"
+];
+function createConsoleTable(data: Array<Partial<ITableItem>>) {
   if (data.length === 0) {
     return "";
   }
 
-  const columns: Array<keyof ITableItem> = [
-    "status",
-    "command",
-    "current",
-    "master",
-    "delta"
-  ];
+  const labels = Object.keys(data[0]) as Array<keyof typeof data[0]>;
+  const columns = COLUMN_ORDER.filter(column => labels.includes(column));
 
-  const firstRow = `| ${columns.map(columnNameToHeader).join(" | ")} |`;
-  const secondRow = `| ${columns.map(() => "---").join("|")} |`;
+  const table = new Table({
+    colAligns: ["middle"],
+    head: columns.map(columnNameToHeader)
+  });
+  table.push(...data.map(row => columns.map(column => row[column])));
+  return table.toString();
+}
+
+function createMarkdownTable(data: ITableItem[]) {
+  if (data.length === 0) {
+    return "";
+  }
+
+  const firstRow = `| ${COLUMN_ORDER.map(columnNameToHeader).join(" | ")} |`;
+  const secondRow = `| ${COLUMN_ORDER.map(() => "---").join("|")} |`;
   const content = data
-    .map(row => `| ${columns.map(column => row[column]).join(" | ")} |`)
+    .map(row => `| ${COLUMN_ORDER.map(column => row[column]).join(" | ")} |`)
     .join("\n");
 
   return `${firstRow}\n${secondRow}\n${content}`;
@@ -115,7 +131,6 @@ export async function run() {
 
   const tableRowsWithoutStatus = results.map(result => {
     return {
-      delta: getDeltaString(0),
       command: result.command,
       current: result.current
     };
@@ -124,7 +139,7 @@ export async function run() {
   const info = getChangeInfo(process.env as any);
 
   if (!info.pr) {
-    console.table(tableRowsWithoutStatus);
+    console.log(createConsoleTable(tableRowsWithoutStatus));
     return;
   }
   const previousResults = await getPreviousResults(info.pr.repo);
@@ -135,13 +150,17 @@ export async function run() {
 
     return {
       ...result,
-      delta: getDeltaString(delta),
       master: latest === null ? "-" : latest.toString(),
-      status: delta > 0 ? "⬆️" : delta !== 0 ? "⬇️" : "✅"
+      status:
+        delta > 0
+          ? `↑ ${getDeltaString(delta)}`
+          : delta !== 0
+          ? `↓ ${getDeltaString(delta)}`
+          : "="
     };
   });
 
-  console.table(tableRows);
+  console.log(createConsoleTable(tableRows));
   if (!process.env.GITHUB_TOKEN) {
     console.info("No Github token set");
     return;
@@ -159,7 +178,11 @@ export async function run() {
     return;
   }
 
-  await createComment(table(tableRows), info.pr, process.env.GITHUB_TOKEN!);
+  await createComment(
+    createMarkdownTable(tableRows),
+    info.pr,
+    process.env.GITHUB_TOKEN!
+  );
 }
 
 if (require.main === module) {

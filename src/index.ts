@@ -7,7 +7,8 @@ import {
   storeResults,
   IResult,
   getPreviousResults,
-  IConfigurationFile
+  IConfigurationFile,
+  getGraphURL
 } from "./storage";
 import { createComment } from "./github";
 
@@ -179,7 +180,11 @@ export async function run() {
   }
 
   await createComment(
-    createMarkdownTable(tableRows),
+    `
+<img src="${getGraphURL(info.pr.repo)}" />
+
+${createMarkdownTable(tableRows)}
+  `,
     info.pr,
     process.env.GITHUB_TOKEN!
   );

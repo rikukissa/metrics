@@ -11,6 +11,10 @@ export interface IResult {
   current: number;
 }
 
+export function getGraphURL(repo: string) {
+  return `https://metrics-backend.herokuapp.com/metrics/${repo}.svg`;
+}
+
 export async function getPreviousResults(repo: string): Promise<IResult[]> {
   const response = await fetch(
     `https://metrics-backend.herokuapp.com/metrics/${repo}`
